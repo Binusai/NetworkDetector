@@ -4,10 +4,9 @@ from app.model import run_pipeline
 
 app = FastAPI(title="Network Topology Detector API")
 
-# Allow React frontend to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],   # 🔥 FIXED
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
