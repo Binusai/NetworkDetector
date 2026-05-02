@@ -11,6 +11,8 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  const API_URL = "https://networkdetector.onrender.com";
+
   async function handleUpload(file) {
     setLoading(true)
     setError(null)
@@ -21,7 +23,7 @@ export default function App() {
     formData.append("file", file)
 
     try {
-      const res = await fetch("http://localhost:8000/predict", {
+      const res = await fetch(`${API_URL}/predict`, {
         method: "POST",
         body: formData,
       })
