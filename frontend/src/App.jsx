@@ -11,7 +11,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  const API_URL = "https://networkdetector.onrender.com";
+  const API_URL = "http://localhost:8000";
 
   async function handleUpload(file) {
     setLoading(true)

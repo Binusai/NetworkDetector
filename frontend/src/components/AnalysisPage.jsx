@@ -1,20 +1,40 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import ImageDetectionSection from "./ImageDetectionSection"
 import ConnectionsSection from "./ConnectionsSection"
 import GraphSection from "./GraphSection"
 import TopologySection from "./TopologySection"
+import IssuesSection from "./IssuesSection"
+import OptimizedGraphSection from "./OptimizedGraphSection"
+import AlternativeSection from "./AlternativeSection"
+import ScoresSection from "./ScoresSection"
 import SecuritySection from "./SecuritySection"
+
+const SECTION_LABELS = [
+  "Detection", "Connections", "Graph", "Topology",
+  "Issues", "Optimized", "Alternative", "Scores", "Security"
+]
+
+const SECTION_KEYS = [
+  "detection", "connections", "graph", "topology",
+  "issues", "optimized", "alternative", "scores", "security"
+]
 
 export default function AnalysisPage({ result, preview, loading, error, onReset }) {
   const [phase, setPhase] = useState("loading")
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem("netscan-theme")
+    return saved !== "light"
+  })
 
-  const refs = {
-    detection:   useRef(),
-    connections: useRef(),
-    graph:       useRef(),
-    topology:    useRef(),
-    security:    useRef(),
-  }
+  useEffect(() => {
+    localStorage.setItem("netscan-theme", isDark ? "dark" : "light")
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light")
+  }, [isDark])
+
+  const refs = {}
+  SECTION_KEYS.forEach(key => {
+    refs[key] = useRef()
+  })
 
   function scrollTo(ref) {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -25,106 +45,147 @@ export default function AnalysisPage({ result, preview, loading, error, onReset 
     if (error)   { setPhase("error");   return }
     if (!result)  return
 
-    // Phase sequence with auto-scroll
-    setPhase("detecting")
-    setTimeout(() => scrollTo(refs.detection), 300)
+    // Phase sequence with auto-scroll — faster transitions
+    const steps = [
+      { phase: "detection",   delay: 0 },
+      { phase: "connections", delay: 4000 },
+      { phase: "graph",       delay: 7000 },
+      { phase: "topology",    delay: 10500 },
+      { phase: "issues",      delay: 14000 },
+      { phase: "optimized",   delay: 17000 },
+      { phase: "alternative", delay: 20500 },
+      { phase: "scores",      delay: 24000 },
+      { phase: "security",    delay: 27000 },
+      { phase: "done",        delay: 29500 },
+    ]
 
-    setTimeout(() => {
-      setPhase("connections")
-      setTimeout(() => scrollTo(refs.connections), 300)
-    }, 6000)
+    const timers = steps.map(s =>
+      setTimeout(() => {
+        setPhase(s.phase)
+        if (s.phase !== "done" && refs[s.phase]) {
+          setTimeout(() => scrollTo(refs[s.phase]), 300)
+        }
+      }, s.delay)
+    )
 
-    setTimeout(() => {
-      setPhase("graph")
-      setTimeout(() => scrollTo(refs.graph), 300)
-    }, 9500)
-
-    setTimeout(() => {
-      setPhase("topology")
-      setTimeout(() => scrollTo(refs.topology), 300)
-    }, 14500)
-
-    setTimeout(() => {
-      setPhase("security")
-      setTimeout(() => scrollTo(refs.security), 300)
-    }, 17500)
-
-    setTimeout(() => setPhase("done"), 19500)
+    return () => timers.forEach(clearTimeout)
   }, [result, loading, error])
 
-  const phaseIndex = {
-    loading: 0, detecting: 1, connections: 2,
-    graph: 3, topology: 4, security: 5, done: 6
-  }
-  const pi = phaseIndex[phase] || 0
+  const phaseOrder = ["loading", ...SECTION_KEYS, "done"]
+  const pi = phaseOrder.indexOf(phase)
 
   return (
-    <div style={{ background: "#000", minHeight: "100vh" }}>
+    <div style={{
+      background: isDark ? "#000" : "#f4f4f0",
+      minHeight: "100vh",
+      transition: "background 0.4s ease, color 0.4s ease"
+    }}>
       {/* Fixed top bar */}
       <div style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "20px 40px",
-        background: "rgba(0,0,0,0.85)",
+        padding: "16px 32px",
+        background: isDark ? "rgba(0,0,0,0.88)" : "rgba(244,244,240,0.92)",
         backdropFilter: "blur(20px)",
-        borderBottom: "1px solid rgba(255,255,255,0.06)"
+        borderBottom: isDark ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(0,0,0,0.08)"
       }}>
         <div style={{
           fontFamily: "var(--font-display)",
-          fontSize: 16, fontWeight: 700, color: "#fff"
+          fontSize: 16, fontWeight: 700, color: isDark ? "#fff" : "#111"
         }}>
           NET<span style={{ color: "#e8ff47" }}>SCAN</span>
         </div>
 
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {["Detecting","Connections","Graph","Topology","Security"].map((label, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div
-                onClick={() => {
-                  const refKeys = ["detection","connections","graph","topology","security"]
-                  if (pi > i) scrollTo(refs[refKeys[i]])
-                }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "4px 12px", borderRadius: 100,
-                  background: pi > i ? "rgba(232,255,71,0.15)" : "transparent",
-                  border: `1px solid ${pi > i ? "rgba(232,255,71,0.4)" : "rgba(255,255,255,0.08)"}`,
-                  transition: "all 0.5s ease",
-                  cursor: pi > i ? "pointer" : "default"
-                }}>
-                <div style={{
-                  width: 5, height: 5, borderRadius: "50%",
-                  background: pi > i ? "#e8ff47" : "rgba(255,255,255,0.2)",
-                  animation: pi === i + 1 ? "pulse 1s ease-in-out infinite" : "none",
-                  transition: "all 0.5s ease"
-                }} />
-                <span style={{
-                  fontSize: 11, letterSpacing: "0.06em",
-                  color: pi > i ? "rgba(232,255,71,0.8)" : "rgba(255,255,255,0.25)",
-                  fontFamily: "var(--font-body)", fontWeight: 500,
-                  transition: "all 0.5s ease"
-                }}>{label}</span>
+        {/* Nav pills - scrollable */}
+        <div style={{
+          display: "flex", gap: 4, alignItems: "center",
+          overflowX: "auto", maxWidth: "60vw",
+          scrollbarWidth: "none"
+        }}>
+          {SECTION_LABELS.map((label, i) => {
+            const sectionPhaseIdx = i + 1 // +1 because "loading" is at 0
+            const isCompleted = pi > sectionPhaseIdx
+            const isCurrent = pi === sectionPhaseIdx
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div
+                  onClick={() => {
+                    if (isCompleted) scrollTo(refs[SECTION_KEYS[i]])
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "3px 10px", borderRadius: 100,
+                    background: isCompleted ? "rgba(232,255,71,0.12)" : "transparent",
+                    border: `1px solid ${isCompleted ? "rgba(232,255,71,0.3)" : isCurrent ? "rgba(232,255,71,0.2)" : "rgba(255,255,255,0.06)"}`,
+                    transition: "all 0.4s ease",
+                    cursor: isCompleted ? "pointer" : "default",
+                    whiteSpace: "nowrap", flexShrink: 0
+                  }}>
+                  <div style={{
+                    width: 4, height: 4, borderRadius: "50%",
+                    background: isCompleted ? "#e8ff47" : isCurrent ? "rgba(232,255,71,0.5)" : "rgba(255,255,255,0.15)",
+                    animation: isCurrent ? "pulse 1s ease-in-out infinite" : "none",
+                    transition: "all 0.4s ease"
+                  }} />
+                  <span style={{
+                    fontSize: 10, letterSpacing: "0.04em",
+                    color: isCompleted ? "rgba(232,255,71,0.7)" : isCurrent ? "rgba(232,255,71,0.4)" : "rgba(255,255,255,0.2)",
+                    fontFamily: "var(--font-body)", fontWeight: 500,
+                    transition: "all 0.4s ease"
+                  }}>{label}</span>
+                </div>
+                {i < SECTION_LABELS.length - 1 && (
+                  <div style={{ width: 8, height: 1, background: "rgba(255,255,255,0.06)", flexShrink: 0 }} />
+                )}
               </div>
-              {i < 4 && <div style={{ width: 16, height: 1, background: "rgba(255,255,255,0.08)" }} />}
-            </div>
-          ))}
+            )
+          })}
         </div>
 
-        <button onClick={onReset} style={{
-          padding: "8px 20px", background: "transparent",
-          border: "1px solid rgba(255,255,255,0.15)", borderRadius: 100,
-          color: "rgba(255,255,255,0.5)", fontSize: 12,
-          fontFamily: "var(--font-body)", cursor: "pointer",
-          letterSpacing: "0.04em", transition: "all 0.3s"
-        }}
-          onMouseEnter={e => { e.target.style.color="#fff"; e.target.style.borderColor="rgba(255,255,255,0.4)" }}
-          onMouseLeave={e => { e.target.style.color="rgba(255,255,255,0.5)"; e.target.style.borderColor="rgba(255,255,255,0.15)" }}
-        >
-          ← New Image
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+          {/* Theme toggle */}
+          <button
+            onClick={() => setIsDark(d => !d)}
+            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            style={{
+              width: 36, height: 20, borderRadius: 100,
+              background: isDark ? "rgba(232,255,71,0.15)" : "rgba(0,0,0,0.12)",
+              border: isDark ? "1px solid rgba(232,255,71,0.3)" : "1px solid rgba(0,0,0,0.15)",
+              cursor: "pointer", position: "relative",
+              transition: "all 0.3s ease", flexShrink: 0
+            }}
+          >
+            <div style={{
+              position: "absolute", top: 2,
+              left: isDark ? 18 : 2,
+              width: 14, height: 14, borderRadius: "50%",
+              background: isDark ? "#e8ff47" : "#555",
+              transition: "all 0.3s cubic-bezier(0.4,0,0.2,1)"
+            }} />
+          </button>
+          <span style={{
+            fontSize: 9, letterSpacing: "0.08em",
+            color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)",
+            fontFamily: "var(--font-body)"
+          }}>
+            {isDark ? "DARK" : "LIGHT"}
+          </span>
+          <button onClick={onReset} style={{
+            padding: "6px 16px", background: "transparent",
+            border: isDark ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(0,0,0,0.15)",
+            borderRadius: 100,
+            color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)",
+            fontSize: 11,
+            fontFamily: "var(--font-body)", cursor: "pointer",
+            letterSpacing: "0.04em", transition: "all 0.3s",
+            whiteSpace: "nowrap"
+          }}>
+            ← New
+          </button>
+        </div>
       </div>
 
-      <div style={{ paddingTop: 80 }}>
+      <div style={{ paddingTop: 70 }}>
         {/* Loading */}
         {phase === "loading" && (
           <div style={{
@@ -147,7 +208,7 @@ export default function AnalysisPage({ result, preview, loading, error, onReset 
               <p style={{
                 fontSize: 14, color: "rgba(255,255,255,0.35)",
                 fontFamily: "var(--font-body)"
-              }}>Running YOLO detection + edge analysis...</p>
+              }}>Running YOLO detection + full analysis pipeline...</p>
             </div>
           </div>
         )}
@@ -170,6 +231,7 @@ export default function AnalysisPage({ result, preview, loading, error, onReset 
           </div>
         )}
 
+        {/* 1. Detection */}
         {pi >= 1 && preview && (
           <div ref={refs.detection}>
             <ImageDetectionSection
@@ -181,18 +243,21 @@ export default function AnalysisPage({ result, preview, loading, error, onReset 
           </div>
         )}
 
+        {/* 2. Connections */}
         {pi >= 2 && result && (
           <div ref={refs.connections}>
             <ConnectionsSection edges={result.edges} nodes={result.nodes} />
           </div>
         )}
 
+        {/* 3. Original Graph */}
         {pi >= 3 && result && (
           <div ref={refs.graph}>
             <GraphSection nodes={result.nodes} edges={result.edges} />
           </div>
         )}
 
+        {/* 4. Topology */}
         {pi >= 4 && result && (
           <div ref={refs.topology}>
             <TopologySection
@@ -204,13 +269,47 @@ export default function AnalysisPage({ result, preview, loading, error, onReset 
           </div>
         )}
 
+        {/* 5. Issues */}
         {pi >= 5 && result && (
+          <div ref={refs.issues}>
+            <IssuesSection issues={result.issues} />
+          </div>
+        )}
+
+        {/* 6. Optimized Graph */}
+        {pi >= 6 && result && (
+          <div ref={refs.optimized}>
+            <OptimizedGraphSection
+              originalNodes={result.nodes}
+              originalEdges={result.edges}
+              optimization={result.optimization}
+              topology={result.topology}
+            />
+          </div>
+        )}
+
+        {/* 7. Alternative Topology */}
+        {pi >= 7 && result && (
+          <div ref={refs.alternative}>
+            <AlternativeSection
+              alternative={result.alternative}
+              originalNodes={result.nodes}
+            />
+          </div>
+        )}
+
+        {/* 8. Scores */}
+        {pi >= 8 && result && (
+          <div ref={refs.scores}>
+            <ScoresSection scores={result.scores} />
+          </div>
+        )}
+
+        {/* 9. Security */}
+        {pi >= 9 && result && (
           <div ref={refs.security}>
             <SecuritySection
-              topology={result.topology}
-              nodes={result.nodes}
-              edges={result.edges}
-              warnings={result.security_warnings}
+              security={result.security}
               onReset={onReset}
             />
           </div>

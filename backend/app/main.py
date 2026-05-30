@@ -18,7 +18,8 @@ def root():
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"):
+    content_type = file.content_type or ""
+    if content_type and not content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
     image_bytes = await file.read()
     result = run_pipeline(image_bytes)

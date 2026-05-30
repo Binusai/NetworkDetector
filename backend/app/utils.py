@@ -122,13 +122,11 @@ def edges_from_hough(line_mask, nodes, orig_w, orig_h, grow_px=28):
     return edges
 
 def edges_from_sampling(line_mask, nodes, orig_w, orig_h,
-                         sample_n=100, threshold_ratio=0.18):
+                         sample_n=120, threshold_ratio=0.12):
     edges = set()
     n = len(nodes)
     for i in range(n):
         for j in range(i + 1, n):
-            if is_obstructed(i, j, nodes):
-                continue
             cx1, cy1 = box_center(nodes[i])
             cx2, cy2 = box_center(nodes[j])
             xs = np.linspace(cx1, cx2, sample_n)
@@ -208,6 +206,17 @@ def filter_obstructed_edges(edge_set, nodes):
     return filtered
 
 def filter_low_confidence_cycles(edge_set, hough_edges, sample_edges, skel_edges, nodes):
+    """
+    Remove only truly unconfirmed cycle-closing edges.
+
+    Strategy:
+    - Edges confirmed by >= 1 detection method (Hough / Sampling / Skeleton)
+      are ALWAYS kept, even if they close a cycle. This preserves Ring and Mesh.
+    - Edges with score == 0 (no method confirmed them) are only kept if they
+      don't form a cycle (i.e. they connect previously disconnected components).
+
+    This prevents the old union-find from silently killing ring/mesh topologies.
+    """
     if not edge_set:
         return edge_set
 
@@ -216,6 +225,14 @@ def filter_low_confidence_cycles(edge_set, hough_edges, sample_edges, skel_edges
                 int(e in sample_edges) +
                 int(e in skel_edges))
 
+    # Split into confirmed (score >= 1) and unconfirmed (score == 0)
+    confirmed = {e for e in edge_set if score(e) >= 1}
+    unconfirmed = edge_set - confirmed
+
+    # Always keep all confirmed edges
+    result = set(confirmed)
+
+    # For unconfirmed, only add if they connect new components (avoid phantom edges)
     n = len(nodes)
     parent = list(range(n))
 
@@ -232,15 +249,15 @@ def filter_low_confidence_cycles(edge_set, hough_edges, sample_edges, skel_edges
         parent[px] = py
         return True
 
-    result = set()
-    high_conf = {e for e in edge_set if score(e) >= 2 or e in hough_edges}
-    low_conf = edge_set - high_conf
-    for e in sorted(high_conf, key=score, reverse=True):
+    # Build union-find from confirmed edges first
+    for e in confirmed:
         union(e[0], e[1])
-        result.add(e)
-    for e in sorted(low_conf, key=score, reverse=True):
+
+    # Only add unconfirmed edges that connect new components
+    for e in sorted(unconfirmed, key=score, reverse=True):
         if union(e[0], e[1]):
             result.add(e)
+
     return result
 
 def try_recover_tree(G, nodes, hough_edges, sample_edges, skel_edges):
